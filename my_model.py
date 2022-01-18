@@ -2,6 +2,7 @@ from glob import glob
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 import pandas as pd
 from torchvision import models
 from hyperparams import vision_pretrain, learning_rate, batch_size
@@ -69,31 +70,34 @@ class LitModel(pl.LightningModule):
         output = self(img, csv_feature)
         loss = F.cross_entropy(output, label)
 
-        tensorboard_logs = {'train_loss': loss.detach()}
-
         # use key 'log'
-        return {"loss": loss.detach(), 'log': tensorboard_logs}
+        return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):
         img = batch['img']
         csv_feature = batch['csv_feature']
         label = batch['label']
-
-        # Forward pass
         output = self(img, csv_feature)
+
         score = accuracy_function(label, output)
         loss = F.cross_entropy(output, label)
-        self.log("val_loss", loss)
-        self.log('score', score)
 
+        # return output
         return {"val_loss": loss, 'score':score}
 
     def validation_epoch_end(self, outputs):
         # outputs = list of dictionaries
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'avg_val_loss': avg_loss}
-        # use key 'log'
-        return {'val_loss': avg_loss.detahc(), 'log': tensorboard_logs}
+        # avg_loss = np.average([[x['val_loss'] for x in outputs]])
+        # avg_score = sum([x['score'] for x in outputs]) / len(outputs)
+        avg_score = np.average([x['score'] for x in outputs])
+        # avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        # Forward pass
+    
+        self.log("val_loss", avg_loss)
+        self.log('score', avg_score)
+        self.log('lr', self.sch.get_last_lr()[0])
+        return {'val_loss': avg_loss, 'score':avg_score}
 
     def predict_step(self, batch, batch_idx):
 
@@ -106,5 +110,6 @@ class LitModel(pl.LightningModule):
         return preds
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        return optimizer
+        self.opt = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        self.sch = torch.optim.lr_scheduler.ExponentialLR(self.opt, gamma=0.99)
+        return [self.opt], [self.sch]

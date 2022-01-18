@@ -35,6 +35,7 @@ if __name__ == "__main__":
     trainer = Trainer(max_epochs=epochs, gpus=1)
 
     lair_data.setup(stage='test')  # 아, 이걸 직접 콜 해야하나..
+    model.eval()  # 아, 이걸 직접 콜 해야하나2..
     output = trainer.predict(model, datamodule=lair_data)
 
     # ======

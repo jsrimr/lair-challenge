@@ -1,0 +1,10 @@
+program: train.py
+method: bayes
+metric:
+  name: score
+  goal: maximize
+parameters:
+  learning_rate:
+    distribution: log_uniform
+    min: 0.0001
+    max: 0.1

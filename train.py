@@ -163,14 +163,15 @@ def main(config):
         filename='{epoch}-{val_score:.3f}',
         save_top_k=-1,
         mode='max',
-        save_weights_only=True,
+        save_weights_only=True
     )
 
     trainer = pl.Trainer(
         max_epochs=config.EPOCHS,
-        gpus=1,
+        gpus=2,
         precision=16,
         callbacks=[checkpoint],
+        strategy="ddp",
         log_every_n_steps=5,
         logger=wandb_logger
     )

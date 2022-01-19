@@ -1,28 +1,33 @@
-from glob import glob
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-import pandas as pd
+from pytorch_lightning import LightningModule
+from sklearn.metrics import f1_score
 from torchvision import models
-from hyperparams import vision_pretrain, learning_rate, batch_size
+
 from utils import accuracy_function
 
-import pytorch_lightning as pl
+
+def accuracy_function(real, pred):
+    real = real.cpu()
+    pred = torch.argmax(pred, dim=1).cpu()
+    score = f1_score(real, pred, average='macro')
+    return score
+
 
 class CNN_Encoder(nn.Module):
     def __init__(self, class_n, rate=0.1):
         super(CNN_Encoder, self).__init__()
-        self.model = models.resnet50(pretrained=vision_pretrain)
+        self.model = models.resnet50(pretrained=True)
 
     def forward(self, inputs):
         output = self.model(inputs)
         return output
 
 
-class RNN_Decoder(nn.Module):
+class LSTM_Decoder(nn.Module):
     def __init__(self, max_len, embedding_dim, num_features, class_n, rate):
-        super(RNN_Decoder, self).__init__()
+        super(LSTM_Decoder, self).__init__()
         self.lstm = nn.LSTM(max_len, embedding_dim)
         self.rnn_fc = nn.Linear(num_features*embedding_dim, 1000)
         # resnet out_dim + lstm out_dim
@@ -38,21 +43,27 @@ class RNN_Decoder(nn.Module):
         output = self.dropout((self.final_layer(fc_input)))
         return output
 
+from torch import nn, optim
 
-class LitModel(pl.LightningModule):
-    def __init__(self, max_len, embedding_dim, num_features, class_n, rate, lr=learning_rate):
-        super(LitModel, self).__init__()
-        self.save_hyperparameters()
 
-        # architecture
-        self.cnn = CNN_Encoder(embedding_dim, rate)
-        self.rnn = RNN_Decoder(max_len, embedding_dim,
-                               num_features, class_n, rate)
+class BaseModel(LightningModule):
+    def __init__(
+        self,
+        cnn,
+        rnn,
+        criterion,
+        learning_rate=5e-4,
+    ):
+        super(BaseModel, self).__init__()
 
-        # etc
-        self.learning_rate = lr
-        self.batch_size = batch_size
+        self.cnn = cnn
+        self.rnn = rnn
+        self.learning_rate = learning_rate
+        self.criterion = criterion
 
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters(), lr=self.learning_rate)
+        return optimizer
 
     def forward(self, img, seq):
         cnn_output = self.cnn(img)
@@ -61,55 +72,66 @@ class LitModel(pl.LightningModule):
         return output
 
     def training_step(self, batch, batch_idx):
-        # images, labels = batch
         img = batch['img']
         csv_feature = batch['csv_feature']
         label = batch['label']
 
-        # Forward pass
         output = self(img, csv_feature)
-        loss = F.cross_entropy(output, label)
+        loss = self.criterion(output, label)
+        score = accuracy_function(label, output)
 
-        # use key 'log'
-        return {"loss": loss}
+        self.log(
+            'train_loss', loss, prog_bar=True, logger=True
+        )
+        self.log(
+            'train_score', score, prog_bar=True, logger=True
+        )
+
+        return {'loss': loss, 'train_score': score}
 
     def validation_step(self, batch, batch_idx):
         img = batch['img']
         csv_feature = batch['csv_feature']
         label = batch['label']
+
         output = self(img, csv_feature)
-
+        loss = self.criterion(output, label)
         score = accuracy_function(label, output)
-        loss = F.cross_entropy(output, label)
 
-        # return output
-        return {"val_loss": loss, 'score':score}
+        self.log(
+            'val_loss', loss, prog_bar=True, logger=True
+        )
+        self.log(
+            'val_score', score, prog_bar=True, logger=True
+        )
 
-    def validation_epoch_end(self, outputs):
-        # outputs = list of dictionaries
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        # avg_loss = np.average([[x['val_loss'] for x in outputs]])
-        # avg_score = sum([x['score'] for x in outputs]) / len(outputs)
-        avg_score = np.average([x['score'] for x in outputs])
-        # avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        # Forward pass
-    
-        self.log("val_loss", avg_loss)
-        self.log('score', avg_score)
-        self.log('lr', self.sch.get_last_lr()[0])
-        return {'val_loss': avg_loss, 'score':avg_score}
+        return {'val_loss': loss, 'val_score': score}
 
-    def predict_step(self, batch, batch_idx):
-
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
         img = batch['img']
-        csv_feature = batch['csv_feature']
+        seq = batch['csv_feature']
 
-        # Forward pass
-        preds = self(img, csv_feature)
+        output = self(img, seq)
+        output = torch.argmax(output, dim=1)
 
-        return preds
+        return output
 
-    def configure_optimizers(self):
-        self.opt = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        self.sch = torch.optim.lr_scheduler.ExponentialLR(self.opt, gamma=0.99)
-        return [self.opt], [self.sch]
+
+class CNN2RNNModel(BaseModel):
+    def __init__(
+        self,
+        max_len,
+        embedding_dim,
+        num_features,
+        class_n,
+        rate=0.1,
+        learning_rate=5e-4,
+    ):
+        cnn = CNN_Encoder(class_n)
+        rnn = LSTM_Decoder(max_len, embedding_dim, num_features, class_n, rate)
+
+        criterion = nn.CrossEntropyLoss()
+
+        super(CNN2RNNModel, self).__init__(
+            cnn, rnn, criterion, learning_rate
+        )

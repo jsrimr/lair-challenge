@@ -6,6 +6,7 @@ from sklearn.metrics import f1_score
 from torchvision import models
 
 from utils import accuracy_function
+import timm
 
 
 def accuracy_function(real, pred):
@@ -15,14 +16,14 @@ def accuracy_function(real, pred):
     return score
 
 
-class CNN_Encoder(nn.Module):
-    def __init__(self, class_n, rate=0.1):
-        super(CNN_Encoder, self).__init__()
-        self.model = models.resnet50(pretrained=True)
+# class CNN_Encoder(nn.Module):
+#     def __init__(self, class_n, rate=0.1):
+#         super(CNN_Encoder, self).__init__()
+#         self.model = models.resnet50(pretrained=True)
 
-    def forward(self, inputs):
-        output = self.model(inputs)
-        return output
+#     def forward(self, inputs):
+#         output = self.model(inputs)
+#         return output
 
 
 class LSTM_Decoder(nn.Module):
@@ -45,6 +46,24 @@ class LSTM_Decoder(nn.Module):
 
 from torch import nn, optim
 
+# Warmup Learning rate scheduler
+from torch.optim.lr_scheduler import _LRScheduler
+class WarmUpLR(_LRScheduler):
+    """warmup_training learning rate scheduler
+    Args:
+        optimizer: optimzier(e.g. SGD)
+        total_iters: totoal_iters of warmup phase
+    """
+    def __init__(self, optimizer, total_iters, last_epoch=-1):
+        
+        self.total_iters = total_iters
+        super().__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        """we will use the first m batches, and set the learning
+        rate to base_lr * m / total_iters
+        """
+        return [base_lr * self.last_epoch / (self.total_iters + 1e-8) for base_lr in self.base_lrs]
 
 class BaseModel(LightningModule):
     def __init__(
@@ -63,6 +82,10 @@ class BaseModel(LightningModule):
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=self.learning_rate)
+
+        # optimizer = optim.Lamb(self.parameters(), lr=self.learning_rate, weight_decay=5e-4)
+        # warmup_scheduler = WarmUpLR(self.optimizer, iter_per_epoch * args.warm_epoch)
+
         return optimizer
 
     def forward(self, img, seq):
@@ -102,10 +125,10 @@ class BaseModel(LightningModule):
             'val_loss', loss, prog_bar=True, logger=True
         )
         self.log(
-            'val_score', score, prog_bar=True, logger=True
+            'score', score, prog_bar=True, logger=True
         )
 
-        return {'val_loss': loss, 'val_score': score}
+        return {'val_loss': loss, 'score': score}
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         img = batch['img']
@@ -127,7 +150,9 @@ class CNN2RNNModel(BaseModel):
         rate=0.1,
         learning_rate=5e-4,
     ):
-        cnn = CNN_Encoder(class_n)
+        # cnn = CNN_Encoder(class_n)
+        cnn = timm.create_model('convnext_base_384_in22ft1k', pretrained=True,
+                                    drop_path_rate=0.2)
         rnn = LSTM_Decoder(max_len, embedding_dim, num_features, class_n, rate)
 
         criterion = nn.CrossEntropyLoss()

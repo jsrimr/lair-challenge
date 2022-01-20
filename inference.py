@@ -1,50 +1,100 @@
 # %%
-from hyperparams import batch_size, learning_rate, embedding_dim, max_len, dropout_rate, epochs, vision_pretrain
+import os
+from argparse import ArgumentParser
+from glob import glob
+
+import albumentations as A
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from tqdm import tqdm
-from glob import glob
-import torch
-from torch import nn
-import torchvision
-
-import torchvision.transforms as transforms
-import torch.nn.functional as F
-from torch.utils.data import Dataset
-
 import pytorch_lightning as pl
+import torch
+import torch.nn.functional as F
+import torchvision
+import torchvision.transforms as transforms
+from albumentations.pytorch import ToTensorV2
 from pytorch_lightning import Trainer
-from argparse import ArgumentParser
+from torch import nn
+from torch.utils.data import Dataset
+from tqdm import tqdm
 
-from data import csv_feature_dict, label_encoder, label_decoder, LAIRDataModule
-from my_model import LitModel
-from hyperparams import batch_size
+from data import (CustomDataModule, csv_feature_dict, label_decoder,
+                  label_encoder)
+from hyperparams import (BATCH_SIZE, CLASS_N, DROPOUT_RATE, EMBEDDING_DIM,
+                         EPOCHS, IMAGE_HEIGHT, IMAGE_WIDTH, LEARNING_RATE,
+                         MAX_LEN, NUM_FEATURES, NUM_WORKERS, ROOT_DIR, SEED)
+from my_model import CNN2RNNModel
+from train import split_data
 
+
+def get_predict_transforms(height, width):
+    return A.Compose([
+        A.Resize(height=height, width=width),
+        A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        ToTensorV2(),
+    ])
+
+
+def get_submission(outputs, save_dir, save_filename, label_decoder):
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+        
+    outputs = [o.detach().cpu().numpy() for batch in outputs
+                                        for o in batch]
+    preds = np.array([label_decoder[int(val)] for val in outputs])
+    
+    submission = pd.read_csv(f'{ROOT_DIR}/sample_submission.csv')
+    submission['label'] = preds
+    
+    save_file_path = os.path.join(save_dir, save_filename)
+    
+    submission.to_csv(save_file_path, index=False)
+
+
+def eval(
+    ckpt_path, 
+    csv_feature_dict, 
+    label_encoder, 
+    label_decoder,
+    submit_save_dir='submissions',
+    submit_save_name='baseline_submission.csv',
+):
+    test_data = split_data(mode='test')
+    
+    predict_transforms = get_predict_transforms(IMAGE_HEIGHT, IMAGE_WIDTH)
+    
+    data_module = CustomDataModule(
+        test=test_data,
+        csv_feature_dict=csv_feature_dict,
+        label_encoder=label_encoder,
+        predict_transforms=predict_transforms,
+        num_workers=NUM_WORKERS,
+        batch_size=BATCH_SIZE,
+    )
+    
+    model = CNN2RNNModel(
+        max_len=24*6, 
+        embedding_dim=512, 
+        num_features=len(csv_feature_dict), 
+        class_n=len(label_encoder),
+    )
+
+    trainer = pl.Trainer(
+        gpus=1,
+        precision=16,
+    )
+
+    ckpt = torch.load(ckpt_path)
+    model.load_state_dict(ckpt['state_dict'])
+
+    outputs = trainer.predict(model, data_module)
+
+    get_submission(outputs, submit_save_dir, submit_save_name, label_decoder)
 
 
 if __name__ == "__main__":
     pl.seed_everything(1234)
 
-    lair_data = LAIRDataModule(batch_size)
-    # model = LitModel(max_len=max_len, embedding_dim=embedding_dim, num_features=len(
-    #     csv_feature_dict), class_n=len(label_encoder), rate=dropout_rate)
-    ckpt_path = "lightning_logs/version_3/checkpoints/epoch=8-step=170.ckpt"
-    model = LitModel.load_from_checkpoint(ckpt_path)
+    CKPT_PATH = 'weights/ConvNeXt-B-22k/epoch=9-val_score=0.899.ckpt'
 
-    trainer = Trainer(max_epochs=epochs, gpus=1)
-
-    lair_data.setup(stage='test')  # 아, 이걸 직접 콜 해야하나..
-    model.eval()  # 아, 이걸 직접 콜 해야하나2..
-    output = trainer.predict(model, datamodule=lair_data)
-
-    # ======
-    results = torch.argmax(torch.cat(output, axis=0), dim=1)
-    # ======
-    # results.extend(torch.tensor(torch.argmax(output, dim=1), dtype=torch.int32).cpu().numpy())
-    preds = np.array([label_decoder[int(val)] for val in results])
-    
-
-    submission = pd.read_csv('data/sample_submission.csv')
-    submission['label'] = preds
-    submission.to_csv('baseline_submission.csv', index=False)
+    eval(CKPT_PATH, csv_feature_dict, label_encoder, label_decoder)    

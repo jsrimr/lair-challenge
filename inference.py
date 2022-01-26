@@ -1,6 +1,7 @@
 # %%
 import os
 from argparse import ArgumentParser
+from datetime import datetime
 from glob import glob
 
 import albumentations as A
@@ -18,13 +19,13 @@ from torch import nn
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from data import (CustomDataModule, csv_feature_dict, label_decoder,
-                  label_encoder)
+from data import CustomDataModule
 from hyperparams import (BATCH_SIZE, CLASS_N, DROPOUT_RATE, EMBEDDING_DIM,
                          EPOCHS, IMAGE_HEIGHT, IMAGE_WIDTH, LEARNING_RATE,
                          MAX_LEN, NUM_FEATURES, NUM_WORKERS, ROOT_DIR, SEED)
 from my_model import CNN2RNNModel
 from train import split_data
+from utils import initialize
 
 
 def get_predict_transforms(height, width):
@@ -59,7 +60,8 @@ def eval(
     submit_save_dir='submissions',
     submit_save_name='baseline_submission.csv',
 ):
-    test_data = split_data(mode='test')
+    # test_data = split_data(mode='test')
+    test_data = sorted(glob(f'{ROOT_DIR}/test/*'))
     
     predict_transforms = get_predict_transforms(IMAGE_HEIGHT, IMAGE_WIDTH)
     
@@ -82,6 +84,9 @@ def eval(
     trainer = pl.Trainer(
         gpus=1,
         precision=16,
+        # strategy="ddp"
+        # fast_dev_run=True,
+        # limit_predict_batches=0.01
     )
 
     ckpt = torch.load(ckpt_path)
@@ -95,6 +100,8 @@ def eval(
 if __name__ == "__main__":
     pl.seed_everything(1234)
 
-    CKPT_PATH = 'weights/ConvNeXt-B-22k/epoch=9-val_score=0.899.ckpt'
+    csv_feature_dict, label_encoder, label_decoder = initialize()
+    CKPT_PATH = 'weights/ConvNeXt-B-22k/epoch=14-score=0.996.ckpt'
 
-    eval(CKPT_PATH, csv_feature_dict, label_encoder, label_decoder)    
+    save_filename = CKPT_PATH.split('/')[1] + datetime.now().strftime("%m%d%H%M") + '_submission.csv'
+    eval(CKPT_PATH, csv_feature_dict, label_encoder, label_decoder, submit_save_name=save_filename)    

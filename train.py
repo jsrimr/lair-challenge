@@ -1,21 +1,21 @@
 import json
 import os
-from glob import glob
 
-import albumentations as A
+
+
 import cv2
 import numpy as np
-import pandas as pd
+
 import pytorch_lightning as pl
 import torch
-from albumentations.pytorch import ToTensorV2
+
 from pytorch_lightning import LightningDataModule, LightningModule
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.utilities.seed import seed_everything
 from sklearn.metrics import f1_score
-from sklearn.model_selection import StratifiedKFold, train_test_split
+
 from torch import nn, optim
 from torch.utils.data import DataLoader, Dataset
 from torchvision import models
@@ -25,58 +25,20 @@ from data import CustomDataModule
 from my_model import CNN2RNNModel
 from utils import initialize
 
-ROOT_DIR = 'data'
 
-
-def get_train_transforms(height, width):
-    return A.Compose([
-        A.Resize(height=height, width=width),
-        A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-        # A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
-        # A.OneOf([
-        #                   A.HorizontalFlip(p=1),
-        #                   A.RandomRotate90(p=1),
-        #                   A.VerticalFlip(p=1) ], p=0.75),
-        ToTensorV2(),
-    ])
-
-
-def get_valid_transforms(height, width):
-    return A.Compose([
-        A.Resize(height=height, width=width),
-        A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-        ToTensorV2()
-    ])
-
-
-
-def split_data(split_rate=0.2, seed=42, mode='train'):
-    """
-    Use for model trained image and time series.
-    """
-    if mode == 'train':
-        train = sorted(glob(f'{ROOT_DIR}/train/*'))
-
-        labelsss = pd.read_csv(f'{ROOT_DIR}/train.csv')['label']
-        train, val = train_test_split(
-            train, test_size=split_rate, random_state=seed, stratify=labelsss)
-
-        return train, val
-    elif mode == 'test':
-        test = sorted(glob(f'{ROOT_DIR}/test/*'))
-
-        return test
-
-
+from utils import get_train_transforms, get_valid_transforms, split_data
 
         
-def run(config, train_idx, val_idx):
+def run(config, train_idx=None, val_idx=None):
     """
     Use for model trained image and time series.
     """
-    # train_data, val_data = split_data(seed=1234, mode='train')
-    
-    train_data, val_data = train_path_list[train_idx], train_path_list[val_idx]
+    if train_idx and val_idx:
+        from utils import ROOT_DIR
+        train_path_list = np.array(sorted(glob(f'{ROOT_DIR}/train/*')))
+        train_data, val_data = train_path_list[train_idx], train_path_list[val_idx]
+    else:
+        train_data, val_data = split_data(seed=1234, mode='train')
 
     train_transforms = get_train_transforms(
         config.IMAGE_HEIGHT, config.IMAGE_WIDTH)
@@ -129,7 +91,7 @@ def run(config, train_idx, val_idx):
                     )
 
     trainer = pl.Trainer(
-        # max_epochs=config.EPOCHS,
+        max_epochs=config.EPOCHS,
         gpus=2,
         precision=16,
         callbacks=[checkpoint, early_stop],
@@ -166,18 +128,21 @@ if __name__ == "__main__":
     )
 
     csv_feature_dict, label_encoder, label_decoder = initialize()
-    train_path_list = np.array(sorted(glob(f'{ROOT_DIR}/train/*')))
+    
 
     wandb.init(config=hyperparameter_defaults)  # 이거 없으면 wandb 에서 프로젝트를 자꾸 새로 만들더라.. 왜 그러지..
     # wandb.define_metric("score", summary="max") # 이거하니까 logging 이 안됨
     config = wandb.config
     # config = AttrDict(hyperparameter_defaults)
 
-    kf_stratified = StratifiedKFold(shuffle=True)
-    train = sorted(glob(f'{ROOT_DIR}/train/*'))
-    labelsss = pd.read_csv(f'{ROOT_DIR}/train.csv')['label']
 
-
+    # ===========k-fold cv===================
+    # kf_stratified = StratifiedKFold(shuffle=True)
+    # train = sorted(glob(f'{ROOT_DIR}/train/*'))
+    # labelsss = pd.read_csv(f'{ROOT_DIR}/train.csv')['label']
     # ref : https://www.kaggle.com/haqishen/ranzcr-1st-place-soluiton-cls-model-small-ver#Train-&-Validation-Function
-    for train_idx, val_idx in kf_stratified.split(train, labelsss):
-        run(config, train_idx, val_idx)
+    # for train_idx, val_idx in kf_stratified.split(train, labelsss):
+    #     run(config, train_idx, val_idx)
+    # =========================================
+
+    run(config)

@@ -162,5 +162,5 @@ class CustomDataModule(LightningDataModule):
     def predict_dataloader(self):
         '''returns test dataloader'''
         test_loader = torch.utils.data.DataLoader(
-            self.test_dataset, batch_size=self.batch_size, num_workers=8, shuffle=False, persistent_workers=True, pin_memory=True)
+            self.predict_dataset, batch_size=self.batch_size, num_workers=8, shuffle=False, persistent_workers=True, pin_memory=True)
         return test_loader

@@ -1,10 +1,14 @@
-program: train.py
+program: sweep_run.py
 method: bayes
 metric:
   name: score
   goal: maximize
 parameters:
-  learning_rate:
+  LEARNING_RATE:
     distribution: log_uniform
-    min: 0.0001
-    max: 0.1
+    min: -9.21   # exp(-9.21) = 1e-4
+    max: -4.61    # exp(-4.61) = 1e-2
+  EPOCHS:
+    distribution: uniform
+    min: 10
+    max: 30

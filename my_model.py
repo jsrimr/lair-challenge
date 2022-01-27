@@ -98,6 +98,7 @@ class BaseModel(LightningModule):
 
     def forward(self, img, seq):
         cnn_output = self.cnn(img)
+        # return cnn_output
         output = self.rnn(cnn_output, seq)
 
         return output

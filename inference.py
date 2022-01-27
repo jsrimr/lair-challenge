@@ -101,7 +101,8 @@ if __name__ == "__main__":
     pl.seed_everything(1234)
 
     csv_feature_dict, label_encoder, label_decoder = initialize()
-    CKPT_PATH = 'weights/ConvNeXt-B-22k/epoch=14-score=0.996.ckpt'
+    # CKPT_PATH = 'weights/ConvNeXt-B-22k/epoch=14-score=0.996.ckpt'
+    CKPT_PATH = 'weights/ConvNeXt-B-22k/epoch=9-score=1.000.ckpt'
 
     save_filename = CKPT_PATH.split('/')[1] + datetime.now().strftime("%m%d%H%M") + '_submission.csv'
     eval(CKPT_PATH, csv_feature_dict, label_encoder, label_decoder, submit_save_name=save_filename)    

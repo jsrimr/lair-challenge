@@ -146,28 +146,21 @@ class CustomDataModule(LightningDataModule):
         )
 
     def train_dataloader(self):
-        return DataLoader(
-            self.train_dataset,
-            batch_size=self.batch_size,
-            pin_memory=True,
-            shuffle=True,
-            num_workers=self.num_workers,
-        )
+        '''returns training dataloader'''
+        train_loader = torch.utils.data.DataLoader(
+            self.train_dataset, batch_size=self.batch_size, num_workers=8, shuffle=True, persistent_workers=True, pin_memory=True)
+        return train_loader
+
 
     def val_dataloader(self):
-        return DataLoader(
-            self.valid_dataset,
-            batch_size=self.batch_size,
-            pin_memory=True,
-            shuffle=False,
-            num_workers=self.num_workers,
-        )
-        
+        '''returns validation dataloader'''
+        val_loader = torch.utils.data.DataLoader(
+            self.val_dataset, batch_size=self.batch_size, num_workers=8, shuffle=False, persistent_workers=True, pin_memory=True)
+        return val_loader
+
+
     def predict_dataloader(self):
-        return DataLoader(
-            self.predict_dataset,
-            batch_size=self.batch_size,
-            pin_memory=True,
-            shuffle=False,
-            num_workers=self.num_workers,
-        )
+        '''returns test dataloader'''
+        test_loader = torch.utils.data.DataLoader(
+            self.test_dataset, batch_size=self.batch_size, num_workers=8, shuffle=False, persistent_workers=True, pin_memory=True)
+        return test_loader

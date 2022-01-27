@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import numpy as np
 import timm
 import torch
 import torch.nn as nn
@@ -146,10 +147,7 @@ class BaseModel(LightningModule):
         self.log(
             'score', score, prog_bar=True, logger=True
         )
-        self.max_score = max(self.max_score, score)
-        self.log(
-            'max_score', self.max_score, prog_bar=True, logger=True
-        )
+        self.val_scores.append(score)
 
         return {'val_loss': loss, 'score': score}
 

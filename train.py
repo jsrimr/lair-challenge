@@ -1,8 +1,8 @@
+from argparse import ArgumentParser
 import json
 import os
-
-
-
+from glob import glob
+from tabnanny import check
 import cv2
 import numpy as np
 
@@ -26,19 +26,47 @@ from my_model import CNN2RNNModel
 from utils import initialize
 
 
-from utils import get_train_transforms, get_valid_transforms, split_data
+from utils import get_train_transforms, get_valid_transforms, split_data, ROOT_DIR
 
         
-def run(config, train_idx=None, val_idx=None):
+def run(config, train_idx=None, val_idx=None, full_train=False):
     """
     Use for model trained image and time series.
     """
     if train_idx and val_idx:
-        from utils import ROOT_DIR
+        # from utils import ROOT_DIR
         train_path_list = np.array(sorted(glob(f'{ROOT_DIR}/train/*')))
         train_data, val_data = train_path_list[train_idx], train_path_list[val_idx]
     else:
         train_data, val_data = split_data(seed=1234, mode='train')
+    
+
+    ckpt_path = f'./weights/{config.MODEL_NAME}/'
+    if not os.path.exists(ckpt_path):
+        os.makedirs(ckpt_path)
+    checkpoint = ModelCheckpoint(
+        monitor='score',
+        dirpath=ckpt_path,
+        filename='{epoch}-{score:.3f}',
+        save_top_k=3,
+        mode='max',
+        save_weights_only=True
+    )
+
+    early_stop = EarlyStopping(
+                    monitor='score',
+                    patience=3,
+                    verbose=False,
+                    mode='max'
+                    )
+
+    if full_train:
+        # 모든 데이터 포함함
+        train_data = np.array(sorted(glob(f'{ROOT_DIR}/train/*')))
+        callbacks = [checkpoint]
+    else:
+        callbacks = [checkpoint, early_stop]
+        
 
     train_transforms = get_train_transforms(
         config.IMAGE_HEIGHT, config.IMAGE_WIDTH)
@@ -70,31 +98,11 @@ def run(config, train_idx=None, val_idx=None):
     wandb_logger.watch(model.rnn)
     pl.seed_everything(1234)
 
-    ckpt_path = f'./weights/{config.MODEL_NAME}/'
-    if not os.path.exists(ckpt_path):
-        os.makedirs(ckpt_path)
-
-    checkpoint = ModelCheckpoint(
-        monitor='score',
-        dirpath=ckpt_path,
-        filename='{epoch}-{score:.3f}',
-        save_top_k=3,
-        mode='max',
-        save_weights_only=True
-    )
-
-    early_stop = EarlyStopping(
-                    monitor='score',
-                    patience=3,
-                    verbose=False,
-                    mode='max'
-                    )
-
     trainer = pl.Trainer(
         max_epochs=config.EPOCHS,
         gpus=2,
         precision=16,
-        callbacks=[checkpoint, early_stop],
+        callbacks=callbacks,
         strategy="ddp",
         log_every_n_steps=5,
         logger=wandb_logger
@@ -106,7 +114,7 @@ def run(config, train_idx=None, val_idx=None):
 # Sweep parameters
 from hyperparams import (BATCH_SIZE, CLASS_N, DROPOUT_RATE, EMBEDDING_DIM,
                          EPOCHS, IMAGE_HEIGHT, IMAGE_WIDTH, LEARNING_RATE,
-                         MAX_LEN, NUM_FEATURES, NUM_WORKERS, SEED)
+                         MAX_LEN, NUM_FEATURES, NUM_WORKERS, SEED, MODEL_NAME)
 
 from attrdict import AttrDict
 
@@ -124,7 +132,7 @@ if __name__ == "__main__":
         DROPOUT_RATE=DROPOUT_RATE,
         EPOCHS=EPOCHS,
         NUM_WORKERS=NUM_WORKERS,
-        MODEL_NAME='ConvNeXt-B-22k'
+        MODEL_NAME=MODEL_NAME
     )
 
     csv_feature_dict, label_encoder, label_decoder = initialize()
@@ -145,4 +153,8 @@ if __name__ == "__main__":
     #     run(config, train_idx, val_idx)
     # =========================================
 
-    run(config)
+    parser = ArgumentParser()
+    parser.add_argument('--full_train', action='store_true')
+    args = parser.parse_args()
+
+    run(config, full_train=args.full_train)

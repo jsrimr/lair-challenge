@@ -120,6 +120,10 @@ class BaseModel(LightningModule):
 
         return {'loss': loss, 'train_score': score}
 
+    def on_validation_step_start(self) -> None:
+        self.max_score = 0
+
+
     def validation_step(self, batch, batch_idx):
         img = batch['img']
         csv_feature = batch['csv_feature']

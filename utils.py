@@ -81,3 +81,50 @@ def initialize():
     label_decoder = {val: key for key, val in label_encoder.items()}
     
     return csv_feature_dict, label_encoder, label_decoder
+
+
+from glob import glob
+import albumentations as A
+import pandas as pd
+from albumentations.pytorch import ToTensorV2
+from sklearn.model_selection import StratifiedKFold, train_test_split
+ROOT_DIR = 'data'
+
+def get_train_transforms(height, width):
+    return A.Compose([
+        A.Resize(height=height, width=width),
+        A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        # A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.05, rotate_limit=15, p=0.5),
+        # A.OneOf([
+        #                   A.HorizontalFlip(p=1),
+        #                   A.RandomRotate90(p=1),
+        #                   A.VerticalFlip(p=1) ], p=0.75),
+        ToTensorV2(),
+    ])
+
+
+def get_valid_transforms(height, width):
+    return A.Compose([
+        A.Resize(height=height, width=width),
+        A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        ToTensorV2()
+    ])
+
+
+
+def split_data(split_rate=0.2, seed=42, mode='train'):
+    """
+    Use for model trained image and time series.
+    """
+    if mode == 'train':
+        train = sorted(glob(f'{ROOT_DIR}/train/*'))
+
+        labelsss = pd.read_csv(f'{ROOT_DIR}/train.csv')['label']
+        train, val = train_test_split(
+            train, test_size=split_rate, random_state=seed, stratify=labelsss)
+
+        return train, val
+    elif mode == 'test':
+        test = sorted(glob(f'{ROOT_DIR}/test/*'))
+
+        return test

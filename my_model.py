@@ -121,8 +121,14 @@ class BaseModel(LightningModule):
 
         return {'loss': loss, 'train_score': score}
 
-    def on_validation_step_start(self) -> None:
-        self.max_score = 0
+    def on_validation_epoch_start(self):
+        self.val_scores = []
+    
+    def on_validation_epoch_end(self):
+        self.max_score = max(self.max_score, np.mean(self.val_scores))
+        self.log(
+            'max_score', self.max_score, prog_bar=True, logger=True
+        )
 
 
     def validation_step(self, batch, batch_idx):
@@ -172,32 +178,6 @@ class BaseModel(LightningModule):
         return output
 
 
-    # def on_predict_epoch_end(self, outputs) -> None:
-    #     print(outputs)
-    #     return
-    #     import os
-
-    #     import numpy as np
-    #     import pandas as pd
-    #     save_dir = 'submissions'
-    #     save_filename = datetime.now().strftime("%m%d%H%M") + '_submission.csv'
-
-        
-
-    #     if not os.path.exists(save_dir):
-    #         os.makedirs(save_dir)
-        
-    #     outputs = [o for batch in outputs for o in batch]
-    #     preds = np.array([label_decoder[int(val)] for val in outputs])
-        
-    #     submission = pd.read_csv(f'{ROOT_DIR}/sample_submission.csv')
-    #     submission['label'] = preds
-        
-    #     save_file_path = os.path.join(save_dir, save_filename)
-    #     submission.to_csv(save_file_path, index=False)
-
-    #     return
-
 class CNN2RNNModel(BaseModel):
     def __init__(
         self,
@@ -207,9 +187,10 @@ class CNN2RNNModel(BaseModel):
         class_n,
         rate=0.1,
         learning_rate=5e-4,
+        cnn_model_name=None
     ):
         # cnn = CNN_Encoder(class_n)
-        cnn = timm.create_model('convnext_base_384_in22ft1k', pretrained=True,
+        cnn = timm.create_model(cnn_model_name, pretrained=True,
                                     drop_path_rate=0.2)
         rnn = LSTM_Decoder(max_len, embedding_dim, num_features, class_n, rate)
 

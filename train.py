@@ -96,6 +96,7 @@ def run(config, train_idx=None, val_idx=None, full_train=False):
         img_size=config.IMAGE_HEIGHT
     )
     wandb_logger = WandbLogger(project="lair-challenge")
+    wandb_logger.experiment.define_metric("score", summary='max')
 
     wandb_logger.watch(model.cnn)
     wandb_logger.watch(model.rnn)
@@ -142,7 +143,6 @@ if __name__ == "__main__":
     
 
     wandb.init(config=hyperparameter_defaults)  # 이거 없으면 wandb 에서 프로젝트를 자꾸 새로 만들더라.. 왜 그러지..
-    # wandb.define_metric("score", summary="max") # 이거하니까 logging 이 안됨
     config = wandb.config
     wandb.run.name = f'{IMAGE_WIDTH}_{MODEL_NAME}_{datetime.now().strftime("%m%d%H%M")}'
     # config = AttrDict(hyperparameter_defaults)

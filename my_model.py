@@ -73,29 +73,6 @@ class WarmUpLR(_LRScheduler):
 
 
 
-# class CNN2RNNModel(BaseModel):
-#     def __init__(
-#         self,
-#         max_len,
-#         embedding_dim,
-#         num_features,
-#         class_n,
-#         rate=0.1,
-#         learning_rate=5e-4,
-#         cnn_model_name=None
-#     ):
-#         # cnn = CNN_Encoder(class_n)
-#         cnn = timm.create_model(cnn_model_name, pretrained=True,
-#                                     drop_path_rate=0.2)
-#         rnn = LSTM_Decoder(max_len, embedding_dim, num_features, class_n, rate)
-
-#         criterion = nn.CrossEntropyLoss()
-
-#         super(CNN2RNNModel, self).__init__(
-#             cnn, rnn, criterion, learning_rate
-#         )
-
-
 class CNN2RNNModel(LightningModule):
     def __init__(
         self,
@@ -111,22 +88,19 @@ class CNN2RNNModel(LightningModule):
     ):
         super().__init__()
 
-        # cnn = CNN_Encoder(class_n)
+        # self.cnn = CNN_Encoder(class_n)
         self.cnn = timm.create_model(cnn_model_name, pretrained=True,
                                     drop_path_rate=0.2)
         self.rnn = LSTM_Decoder(max_len, embedding_dim, num_features, class_n, rate)
 
         self.criterion = nn.CrossEntropyLoss()
 
-        # self.cnn = cnn
-        # self.rnn = rnn
-        # self.criterion = criterion
         self.learning_rate = learning_rate
 
         self.tta = tta
         self.cnn_model_name = cnn_model_name
         self.img_size = img_size
-        self.max_score = 0
+        # self.max_score = 0
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=self.learning_rate)
@@ -164,11 +138,11 @@ class CNN2RNNModel(LightningModule):
     def on_validation_epoch_start(self):
         self.val_scores = []
     
-    def on_validation_epoch_end(self):
-        self.max_score = max(self.max_score, np.mean(self.val_scores))
-        self.log(
-            'max_score', self.max_score, prog_bar=True, logger=True
-        )
+    # def on_validation_epoch_end(self):
+    #     self.max_score = max(self.max_score, np.mean(self.val_scores))
+    #     self.log(
+    #         'max_score', self.max_score, prog_bar=True, logger=True
+    #     )
 
 
     def validation_step(self, batch, batch_idx):
@@ -186,7 +160,7 @@ class CNN2RNNModel(LightningModule):
         self.log(
             'score', score, prog_bar=True, logger=True
         )
-        self.val_scores.append(score)
+        # self.val_scores.append(score)
 
         return {'val_loss': loss, 'score': score}
 

@@ -155,7 +155,7 @@ class CustomDataModule(LightningDataModule):
     def val_dataloader(self):
         '''returns validation dataloader'''
         val_loader = torch.utils.data.DataLoader(
-            self.val_dataset, batch_size=self.batch_size, num_workers=8, shuffle=False, persistent_workers=True, pin_memory=True)
+            self.valid_dataset, batch_size=self.batch_size, num_workers=8, shuffle=False, persistent_workers=True, pin_memory=True)
         return val_loader
 
 

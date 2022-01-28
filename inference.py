@@ -22,7 +22,7 @@ from tqdm import tqdm
 from data import CustomDataModule
 from hyperparams import (BATCH_SIZE, CLASS_N, DROPOUT_RATE, EMBEDDING_DIM,
                          EPOCHS, IMAGE_HEIGHT, IMAGE_WIDTH, LEARNING_RATE,
-                         MAX_LEN, NUM_FEATURES, NUM_WORKERS, ROOT_DIR, SEED)
+                         MAX_LEN, MODEL_NAME, NUM_FEATURES, NUM_WORKERS, ROOT_DIR, SEED)
 from my_model import CNN2RNNModel
 from train import split_data
 from utils import initialize
@@ -79,6 +79,7 @@ def eval(
         embedding_dim=512, 
         num_features=len(csv_feature_dict), 
         class_n=len(label_encoder),
+        cnn_model_name=MODEL_NAME
     )
 
     trainer = pl.Trainer(
@@ -100,9 +101,15 @@ def eval(
 if __name__ == "__main__":
     pl.seed_everything(1234)
 
+    parser = ArgumentParser()
+    parser.add_argument('ckpt_path', type=str)
+    args = parser.parse_args()
+
     csv_feature_dict, label_encoder, label_decoder = initialize()
     # CKPT_PATH = 'weights/ConvNeXt-B-22k/epoch=14-score=0.996.ckpt'
-    CKPT_PATH = 'weights/ConvNeXt-B-22k/epoch=9-score=1.000.ckpt'
+    # CKPT_PATH = 'weights/ConvNeXt-B-22k/epoch=9-score=1.000.ckpt'
+    # CKPT_PATH = 'weights/convnext_xlarge_384_in22ft1k/epoch=8-score=0.998.ckpt'
+    CKPT_PATH = args.ckpt_path
 
     save_filename = CKPT_PATH.split('/')[1] + datetime.now().strftime("%m%d%H%M") + '_submission.csv'
     eval(CKPT_PATH, csv_feature_dict, label_encoder, label_decoder, submit_save_name=save_filename)    

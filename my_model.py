@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any, List
 
 import numpy as np
 import timm
@@ -70,23 +71,61 @@ class WarmUpLR(_LRScheduler):
         """
         return [base_lr * self.last_epoch / (self.total_iters + 1e-8) for base_lr in self.base_lrs]
 
-class BaseModel(LightningModule):
+
+
+# class CNN2RNNModel(BaseModel):
+#     def __init__(
+#         self,
+#         max_len,
+#         embedding_dim,
+#         num_features,
+#         class_n,
+#         rate=0.1,
+#         learning_rate=5e-4,
+#         cnn_model_name=None
+#     ):
+#         # cnn = CNN_Encoder(class_n)
+#         cnn = timm.create_model(cnn_model_name, pretrained=True,
+#                                     drop_path_rate=0.2)
+#         rnn = LSTM_Decoder(max_len, embedding_dim, num_features, class_n, rate)
+
+#         criterion = nn.CrossEntropyLoss()
+
+#         super(CNN2RNNModel, self).__init__(
+#             cnn, rnn, criterion, learning_rate
+#         )
+
+
+class CNN2RNNModel(LightningModule):
     def __init__(
         self,
-        cnn,
-        rnn,
-        criterion,
+        max_len,
+        embedding_dim,
+        num_features,
+        class_n,
+        rate=0.1,
         learning_rate=5e-4,
-        tta=False
+        cnn_model_name=None,
+        tta=False,
+        img_size=None
     ):
-        super(BaseModel, self).__init__()
+        super().__init__()
 
-        self.cnn = cnn
-        self.rnn = rnn
+        # cnn = CNN_Encoder(class_n)
+        self.cnn = timm.create_model(cnn_model_name, pretrained=True,
+                                    drop_path_rate=0.2)
+        self.rnn = LSTM_Decoder(max_len, embedding_dim, num_features, class_n, rate)
+
+        self.criterion = nn.CrossEntropyLoss()
+
+        # self.cnn = cnn
+        # self.rnn = rnn
+        # self.criterion = criterion
         self.learning_rate = learning_rate
-        self.criterion = criterion
-        self.tta = tta
 
+        self.tta = tta
+        self.cnn_model_name = cnn_model_name
+        self.img_size = img_size
         self.max_score = 0
 
     def configure_optimizers(self):
@@ -175,25 +214,13 @@ class BaseModel(LightningModule):
 
         return output
 
+    def on_predict_epoch_end(self, results: List[Any]) -> None:
+        import os
+        import pickle
+        save_path = 'results'
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
 
-class CNN2RNNModel(BaseModel):
-    def __init__(
-        self,
-        max_len,
-        embedding_dim,
-        num_features,
-        class_n,
-        rate=0.1,
-        learning_rate=5e-4,
-        cnn_model_name=None
-    ):
-        # cnn = CNN_Encoder(class_n)
-        cnn = timm.create_model(cnn_model_name, pretrained=True,
-                                    drop_path_rate=0.2)
-        rnn = LSTM_Decoder(max_len, embedding_dim, num_features, class_n, rate)
-
-        criterion = nn.CrossEntropyLoss()
-
-        super(CNN2RNNModel, self).__init__(
-            cnn, rnn, criterion, learning_rate
-        )
+        save_path = os.path.join(save_path, f'{self.cnn_model_name}_{self.img_size}_{datetime.now().strftime("%m%d%H%M")}.pkl')
+        with open(save_path, "wb") as f:
+            pickle.dump(results, f)

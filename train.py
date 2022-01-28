@@ -42,9 +42,10 @@ def run(config, train_idx=None, val_idx=None, full_train=False):
         train_data, val_data = split_data(seed=1234, mode='train')
     
 
-    ckpt_path = f'./weights/{config.MODEL_NAME}/'
+    ckpt_path = f'./weights/{config.MODEL_NAME}-{config.IMAGE_HEIGHT}-{config.IMAGE_WIDTH}/'
     if not os.path.exists(ckpt_path):
         os.makedirs(ckpt_path)
+
     checkpoint = ModelCheckpoint(
         monitor='score',
         dirpath=ckpt_path,
@@ -95,11 +96,14 @@ def run(config, train_idx=None, val_idx=None, full_train=False):
         cnn_model_name=config.MODEL_NAME,
         img_size=config.IMAGE_HEIGHT
     )
-    wandb_logger = WandbLogger(project="lair-challenge")
-    wandb_logger.experiment.define_metric("score", summary='max')
+    # wandb.init(config=config)
+    # wandb_logger = WandbLogger(project="lair-challenge")
+    # wandb_logger.experiment.name = f'{IMAGE_HEIGHT}_{IMAGE_WIDTH}_{BATCH_SIZE}_{MODEL_NAME}'
+    # wandb_logger.experiment.config.update(config)
+    # wandb_logger.experiment.define_metric("score", summary='max')
 
-    wandb_logger.watch(model.cnn)
-    wandb_logger.watch(model.rnn)
+    # wandb_logger.watch(model.cnn)
+    # wandb_logger.watch(model.rnn)
     pl.seed_everything(1234)
 
     trainer = pl.Trainer(
@@ -109,7 +113,7 @@ def run(config, train_idx=None, val_idx=None, full_train=False):
         callbacks=callbacks,
         strategy="ddp",
         log_every_n_steps=5,
-        logger=wandb_logger
+        # logger=wandb_logger
     )
 
     trainer.fit(model, data_module)
@@ -123,7 +127,7 @@ from hyperparams import (BATCH_SIZE, CLASS_N, DROPOUT_RATE, EMBEDDING_DIM,
 from attrdict import AttrDict
 
 if __name__ == "__main__":
-    hyperparameter_defaults = dict(
+    hyperparameter_defaults = AttrDict(
         SEED=SEED,
         IMAGE_WIDTH=IMAGE_WIDTH,
         IMAGE_HEIGHT=IMAGE_HEIGHT,
@@ -142,9 +146,7 @@ if __name__ == "__main__":
     csv_feature_dict, label_encoder, label_decoder = initialize()
     
 
-    wandb.init(config=hyperparameter_defaults)  # 이거 없으면 wandb 에서 프로젝트를 자꾸 새로 만들더라.. 왜 그러지..
-    config = wandb.config
-    wandb.run.name = f'{IMAGE_WIDTH}_{MODEL_NAME}_{datetime.now().strftime("%m%d%H%M")}'
+    
     # config = AttrDict(hyperparameter_defaults)
 
 
@@ -161,4 +163,4 @@ if __name__ == "__main__":
     parser.add_argument('--full_train', action='store_true')
     args = parser.parse_args()
 
-    run(config, full_train=args.full_train)
+    run(hyperparameter_defaults, full_train=args.full_train)

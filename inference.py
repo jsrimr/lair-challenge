@@ -79,11 +79,12 @@ def eval(
         embedding_dim=512, 
         num_features=len(csv_feature_dict), 
         class_n=len(label_encoder),
-        cnn_model_name=MODEL_NAME
+        cnn_model_name=MODEL_NAME,
+        img_size=IMAGE_WIDTH
     )
 
     trainer = pl.Trainer(
-        gpus=1,
+        gpus=[args.gpu],
         precision=16,
         # strategy="ddp"
         # fast_dev_run=True,
@@ -94,6 +95,7 @@ def eval(
     model.load_state_dict(ckpt['state_dict'])
 
     outputs = trainer.predict(model, data_module)
+    outputs = [output['output'] for output in outputs]
 
     get_submission(outputs, submit_save_dir, submit_save_name, label_decoder)
 
@@ -102,14 +104,18 @@ if __name__ == "__main__":
     pl.seed_everything(1234)
 
     parser = ArgumentParser()
-    parser.add_argument('ckpt_path', type=str)
+    parser.add_argument('ckpt_path', type=str, default='weights/convnext_base_384_in22ft1k-288-288/epoch=8-score=1.000.ckpt')
+    parser.add_argument('--gpu', type=int, default=1)
     args = parser.parse_args()
 
     csv_feature_dict, label_encoder, label_decoder = initialize()
     # CKPT_PATH = 'weights/ConvNeXt-B-22k/epoch=14-score=0.996.ckpt'
     # CKPT_PATH = 'weights/ConvNeXt-B-22k/epoch=9-score=1.000.ckpt'
     # CKPT_PATH = 'weights/convnext_xlarge_384_in22ft1k/epoch=8-score=0.998.ckpt'
+    #    weights/convnext_xlarge_384_in22ft1k/res512/epoch=9-score=1.000-v2.ckpt
+    #    weights/convnext_xlarge_384_in22ft1k/epoch=5-score=1.000-v1.ckpt
     CKPT_PATH = args.ckpt_path
 
-    save_filename = CKPT_PATH.split('/')[1] + datetime.now().strftime("%m%d%H%M") + '_submission.csv'
+    weight_dir, model_name, info = CKPT_PATH.split('/')
+    save_filename = model_name + info.replace(".ckpt", "") + '_submission.csv'
     eval(CKPT_PATH, csv_feature_dict, label_encoder, label_decoder, submit_save_name=save_filename)    

@@ -97,10 +97,7 @@ def run(config, train_idx=None, val_idx=None, full_train=False):
         img_size=config.IMAGE_HEIGHT
     )
     # wandb.init(config=config)
-    # wandb_logger = WandbLogger(project="lair-challenge")
-    # wandb_logger.experiment.name = f'{IMAGE_HEIGHT}_{IMAGE_WIDTH}_{BATCH_SIZE}_{MODEL_NAME}'
-    # wandb_logger.experiment.config.update(config)
-    # wandb_logger.experiment.define_metric("score", summary='max')
+
 
     # wandb_logger.watch(model.cnn)
     # wandb_logger.watch(model.rnn)
@@ -113,7 +110,8 @@ def run(config, train_idx=None, val_idx=None, full_train=False):
         callbacks=callbacks,
         strategy="ddp",
         log_every_n_steps=5,
-        # logger=wandb_logger
+        # limit_train_batches=0.01,
+        logger=wandb_logger
     )
 
     trainer.fit(model, data_module)
@@ -144,7 +142,13 @@ if __name__ == "__main__":
     )
 
     csv_feature_dict, label_encoder, label_decoder = initialize()
-    
+    wandb_logger = WandbLogger(project="lair-challenge")
+    wandb_logger.experiment.name = f'{IMAGE_HEIGHT}_{IMAGE_WIDTH}_{BATCH_SIZE}_{MODEL_NAME}'
+
+    if os.environ.get("LOCAL_RANK", None) is None:
+        wandb_logger.experiment.config.update(hyperparameter_defaults)
+
+    wandb_logger.experiment.define_metric("score", summary='max')
 
     
     # config = AttrDict(hyperparameter_defaults)

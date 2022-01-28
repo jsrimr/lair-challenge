@@ -105,7 +105,7 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()
     parser.add_argument('ckpt_path', type=str, default='weights/convnext_base_384_in22ft1k-288-288/epoch=8-score=1.000.ckpt')
-    parser.add_argument('--gpu', type=int, default=1)
+    parser.add_argument('--gpu', type=int, default=0)
     args = parser.parse_args()
 
     csv_feature_dict, label_encoder, label_decoder = initialize()
